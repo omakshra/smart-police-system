@@ -1,0 +1,71 @@
+/* Hotspot.css */
+
+.hotspot-container {
+  font-family: Arial, sans-serif;
+  background-color: #f9fafb;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.selectors select,
+.selectors input,
+.selectors button {
+  margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.selectors button {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.selectors button:hover {
+  background-color: #1d4ed8; /* slightly darker blue */
+}
+
+.prediction-result {
+  background-color: #ffffff;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+}
+
+.prediction-result table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.prediction-result th,
+.prediction-result td {
+  border: 1px solid #d1d5db;
+  padding: 0.5rem;
+  text-align: center;
+}
+
+.prediction-result th {
+  background-color: #e5e7eb;
+  font-weight: 600;
+}
+
+.prediction-result tr:nth-child(even) {
+  background-color: #f3f4f6;
+}
+
+.crime-chart {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  margin-top: 0.5rem;
+}
+
+.text-red-600 {
+  color: #dc2626;
+}
+
+h2, h3, h4 {
+  color: #111827;
+}

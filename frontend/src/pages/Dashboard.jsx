@@ -1,0 +1,182 @@
+import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import Card from "../components/Card";
+import CrimeTable from "../components/CrimeTable";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+} from "recharts";
+
+const Dashboard = () => {
+  const [user, setUser] = useState(null);
+  const [crimes, setCrimes] = useState([]);
+  const navigate = useNavigate();
+
+  // Fetch crimes with useCallback to avoid useEffect dependency issues
+  const fetchCrimes = useCallback(async (token) => {
+    if (!token) return;
+    try {
+      const res = await fetch("http://127.0.0.1:8000/crimes", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401) {
+        // Invalid token → log out
+        handleLogout();
+        return;
+      }
+      const data = await res.json();
+      if (Array.isArray(data)) setCrimes(data);
+    } catch (err) {
+      console.error("Fetch failed:", err);
+    }
+  }, []);
+
+  // Load user and crimes on mount
+  useEffect(() => {
+    const raw = localStorage.getItem("user");
+    let userData = null;
+    try {
+      userData = raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      userData = null;
+    }
+
+    if (!userData || !userData.token) {
+      // not logged in → go to login
+      navigate("/login");
+      return;
+    }
+
+    setUser(userData);
+    fetchCrimes(userData.token);
+  }, [fetchCrimes, navigate]);
+
+  // Logout
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
+
+  // Generate weekly trend & category data
+  const trendData = [];
+  const categoryData = {};
+  crimes.forEach((c) => {
+    const week = `Week ${new Date(c.date).getWeekNumber()}`;
+    const cat = c.category;
+
+    const weekObj = trendData.find((w) => w.week === week);
+    if (weekObj) {
+      weekObj[cat] = (weekObj[cat] || 0) + 1;
+    } else {
+      trendData.push({ week, [cat]: 1 });
+    }
+
+    categoryData[cat] = (categoryData[cat] || 0) + 1;
+  });
+
+  const barChartData = Object.keys(categoryData).map((key) => ({
+    category: key,
+    count: categoryData[key],
+  }));
+
+  const kpis = [
+    { title: "Total Incidents", value: crimes.length },
+    { title: "Top Categories", value: Object.keys(categoryData).join(", ") || "-" },
+    {
+      title: "Top 5 Hotspots",
+      value: crimes.slice(0, 5).map((c) => c.grid_id).join(", ") || "-",
+    },
+  ];
+
+  return (
+    <div className="space-y-6 p-4">
+      <div className="bg-white shadow p-4 rounded flex items-center justify-between">
+        <div>
+          {user ? (
+            <h2 className="text-xl font-semibold text-gray-700">
+              👋 Welcome Officer {user.name}
+            </h2>
+          ) : (
+            <h2 className="text-xl font-semibold text-gray-700">👋 Welcome</h2>
+          )}
+          <p className="text-gray-500">Smart Crime Monitoring Dashboard</p>
+        </div>
+        {user && (
+          <button
+            onClick={handleLogout}
+            className="bg-red-600 text-white px-3 py-1 rounded"
+          >
+            Logout
+          </button>
+        )}
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {kpis.map((kpi, idx) => (
+          <Card key={idx} title={kpi.title} value={kpi.value} />
+        ))}
+      </div>
+
+      {/* Trend Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white shadow rounded p-4 h-64">
+          <h3 className="mb-2 font-semibold text-gray-700">Weekly Crime Trend</h3>
+          <ResponsiveContainer width="100%" height="90%">
+            <LineChart data={trendData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="week" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              {Object.keys(categoryData).map((cat, idx) => (
+                <Line
+                  key={idx}
+                  type="monotone"
+                  dataKey={cat}
+                  stroke={["#8884d8", "#82ca9d", "#ffc658", "#ff8042"][idx % 4]}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-white shadow rounded p-4 h-64">
+          <h3 className="mb-2 font-semibold text-gray-700">Category Distribution</h3>
+          <ResponsiveContainer width="100%" height="90%">
+            <BarChart data={barChartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="category" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="count" fill="#8884d8" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Crime Table */}
+      {user && <CrimeTable token={user.token} />}
+    </div>
+  );
+};
+
+// Helper to get week number
+Date.prototype.getWeekNumber = function () {
+  const d = new Date(Date.UTC(this.getFullYear(), this.getMonth(), this.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+};
+
+export default Dashboard;
