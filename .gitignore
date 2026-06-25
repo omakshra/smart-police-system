@@ -39,8 +39,5 @@ yarn-error.log
 .env
 .env.local
 
-# ML Models (optional - if you want to track them, remove these lines)
-backend/models/*.pkl
-
 # Logs
 *.log
