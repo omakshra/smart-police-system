@@ -21,8 +21,8 @@ const CrimeTable = ({ token, refreshCrimes }) => {
 
   // ✅ Fetch crimes on mount or token change
   useEffect(() => {
-    if (token) fetchCrimes();
-  }, [token]);
+  if (token) fetchCrimes();
+}, [token, fetchCrimes]);
 
   const fetchCrimes = async () => {
     try {

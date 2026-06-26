@@ -22,24 +22,25 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   // Fetch crimes with useCallback to avoid useEffect dependency issues
-  const fetchCrimes = useCallback(async (token) => {
-    if (!token) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/crimes`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.status === 401) {
-        // Invalid token → log out
-        handleLogout();
-        return;
-      }
-      const data = await res.json();
-      if (Array.isArray(data)) setCrimes(data);
-    } catch (err) {
-      console.error("Fetch failed:", err);
-    }
-  }, []);
+  const fetchCrimes = useCallback(async () => {
+  if (!token) return;
 
+  try {
+    const res = await fetch(`${API_BASE_URL}/crimes`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (res.status === 401) {
+      handleLogout();
+      return;
+    }
+
+    const data = await res.json();
+    if (Array.isArray(data)) setCrimes(data);
+  } catch (err) {
+    console.error("Fetch failed:", err);
+  }
+}, [token, handleLogout]);
   // Load user and crimes on mount
   useEffect(() => {
     const raw = localStorage.getItem("user");
@@ -70,7 +71,7 @@ const Dashboard = () => {
   const trendData = [];
   const categoryData = {};
   crimes.forEach((c) => {
-    const week = `Week ${new Date(c.date).getWeekNumber()}`;
+    const week = `Week ${getWeekNumber(new Date(c.date))}`;
     const cat = c.category;
 
     const weekObj = trendData.find((w) => w.week === week);
@@ -172,12 +173,12 @@ const Dashboard = () => {
 };
 
 // Helper to get week number
-Date.prototype.getWeekNumber = function () {
-  const d = new Date(Date.UTC(this.getFullYear(), this.getMonth(), this.getDate()));
+export function getWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-};
+}
 
 export default Dashboard;
