@@ -20,26 +20,29 @@ const CrimeTable = ({ token, refreshCrimes }) => {
   const itemsPerPage = 5;
 
   // ✅ Fetch crimes on mount or token change
-  useEffect(() => {
+  const fetchCrimes = useCallback(async () => {
+  if (!token) return;
+
+  try {
+    const res = await axios.get(`${API_BASE_URL}/crimes`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    setCrimes(Array.isArray(res.data) ? res.data : []);
+
+    if (refreshCrimes) refreshCrimes();
+  } catch (err) {
+    console.error("Fetch failed:", err.response || err);
+
+    if (err.response && err.response.status === 401) {
+      localStorage.removeItem("user");
+      window.location.href = "/login";
+    }
+  }
+}, [token, refreshCrimes]);
+useEffect(() => {
   if (token) fetchCrimes();
 }, [token, fetchCrimes]);
-
-  const fetchCrimes = async () => {
-    try {
-      const res = await axios.get(`${API_BASE_URL}/crimes`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setCrimes(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      console.error("Fetch failed:", err.response || err);
-      // If unauthorized, force logout and redirect to login
-      if (err.response && err.response.status === 401) {
-        localStorage.removeItem("user");
-        window.location.href = "/login";
-      }
-    }
-  };
-
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
