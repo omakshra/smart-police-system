@@ -2,31 +2,32 @@ import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../api";
 
+const EMPTY_FORM = {
+  category: "",
+  description: "",
+  latitude: "",
+  longitude: "",
+  grid_id: "",
+};
+
 const CrimeTable = ({ token, refreshCrimes }) => {
   const [crimes, setCrimes] = useState([]);
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
-  const [form, setForm] = useState({
-    id: "",
-    category: "",
-    description: "",
-    latitude: "",
-    longitude: "",
-    grid_id: "",
-  });
-  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [editingId, setEditingId] = useState(null); // store id separately, never in form
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // Handle 401 centrally
+  // ── Auth error handler ───────────────────────────────────────────────────────
   const handle401 = useCallback(() => {
     localStorage.removeItem("user");
     window.location.href = "/login";
   }, []);
 
-  // Fetch crimes — does NOT call refreshCrimes (avoids double-fetch loop)
+  // ── Fetch crimes ─────────────────────────────────────────────────────────────
   const fetchCrimes = useCallback(async () => {
     if (!token) return;
     try {
@@ -40,73 +41,103 @@ const CrimeTable = ({ token, refreshCrimes }) => {
     }
   }, [token, handle401]);
 
-  // Fetch on mount / token change
   useEffect(() => {
     if (token) fetchCrimes();
   }, [token, fetchCrimes]);
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  // ── Form helpers ─────────────────────────────────────────────────────────────
+  const handleChange = (e) =>
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
+  const resetForm = () => {
+    setForm(EMPTY_FORM);
+    setEditingId(null);
+  };
+
+  // Only copy the fields the backend expects — never copy id/user_id/date
+  const handleEdit = (crime) => {
+    setForm({
+      category: crime.category ?? "",
+      description: crime.description ?? "",
+      latitude: crime.latitude ?? "",
+      longitude: crime.longitude ?? "",
+      grid_id: crime.grid_id ?? "",
+    });
+    setEditingId(crime.id); // keep id out of the form entirely
+  };
+
+  // ── Submit (add or update) ───────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Build a clean payload — only the fields CrimeIn expects
+    const payload = {
+      category: form.category,
+      description: form.description,
+      latitude: parseFloat(form.latitude),   // backend expects float
+      longitude: parseFloat(form.longitude), // backend expects float
+      grid_id: form.grid_id,
+    };
+
     try {
-      if (editing) {
-        await axios.put(`${API_BASE_URL}/crimes/${form.id}`, form, {
+      if (editingId !== null) {
+        await axios.put(`${API_BASE_URL}/crimes/${editingId}`, payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
       } else {
-        await axios.post(`${API_BASE_URL}/crimes`, form, {
+        await axios.post(`${API_BASE_URL}/crimes`, payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
       }
-      setForm({ id: "", category: "", description: "", latitude: "", longitude: "", grid_id: "" });
-      setEditing(false);
-      fetchCrimes();       // refresh local table
-      refreshCrimes?.();   // notify parent (Dashboard KPIs etc.)
+      resetForm();
+      fetchCrimes();
+      refreshCrimes?.();
     } catch (err) {
       console.error("Submit failed:", err.response || err);
       if (err.response?.status === 401) handle401();
     }
   };
 
-  const handleEdit = (crime) => {
-    setForm(crime);
-    setEditing(true);
-  };
-
+  // ── Delete ───────────────────────────────────────────────────────────────────
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this record?")) return;
     try {
       await axios.delete(`${API_BASE_URL}/crimes/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchCrimes();       // refresh local table
-      refreshCrimes?.();   // notify parent
+      // If we were editing this record, clear the form
+      if (editingId === id) resetForm();
+      fetchCrimes();
+      refreshCrimes?.();
     } catch (err) {
       console.error("Delete failed:", err.response || err);
       if (err.response?.status === 401) handle401();
     }
   };
 
-  // Filtering
+  // ── Filtering & pagination ───────────────────────────────────────────────────
   const filteredCrimes = crimes.filter((c) => {
     const matchesSearch =
       c.category.toLowerCase().includes(search.toLowerCase()) ||
       c.description.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = filterCategory ? c.category === filterCategory : true;
     const crimeDate = new Date(c.date);
-    const matchesDateFrom = filterDateFrom ? crimeDate >= new Date(filterDateFrom) : true;
-    const matchesDateTo = filterDateTo ? crimeDate <= new Date(filterDateTo) : true;
+    const matchesDateFrom = filterDateFrom
+      ? crimeDate >= new Date(filterDateFrom)
+      : true;
+    const matchesDateTo = filterDateTo
+      ? crimeDate <= new Date(filterDateTo)
+      : true;
     return matchesSearch && matchesCategory && matchesDateFrom && matchesDateTo;
   });
 
-  // Pagination
   const totalPages = Math.ceil(filteredCrimes.length / itemsPerPage);
   const paginatedCrimes = filteredCrimes.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="bg-white shadow rounded p-4">
       <h3 className="mb-2 font-semibold text-gray-700">Your Crime Records</h3>
@@ -160,10 +191,15 @@ const CrimeTable = ({ token, refreshCrimes }) => {
           </thead>
           <tbody>
             {paginatedCrimes.map((crime) => (
-              <tr key={crime.id}>
+              <tr
+                key={crime.id}
+                className={editingId === crime.id ? "bg-yellow-50" : ""}
+              >
                 <td className="px-2 py-1 border">{crime.category}</td>
                 <td className="px-2 py-1 border">{crime.description}</td>
-                <td className="px-2 py-1 border">{new Date(crime.date).toLocaleString()}</td>
+                <td className="px-2 py-1 border">
+                  {new Date(crime.date).toLocaleString()}
+                </td>
                 <td className="px-2 py-1 border">{crime.latitude}</td>
                 <td className="px-2 py-1 border">{crime.longitude}</td>
                 <td className="px-2 py-1 border">{crime.grid_id}</td>
@@ -207,6 +243,18 @@ const CrimeTable = ({ token, refreshCrimes }) => {
         className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2"
         onSubmit={handleSubmit}
       >
+        {editingId !== null && (
+          <p className="col-span-2 text-sm text-yellow-700 bg-yellow-50 px-2 py-1 rounded">
+            Editing record #{editingId} —{" "}
+            <button
+              type="button"
+              onClick={resetForm}
+              className="underline text-blue-600"
+            >
+              Cancel
+            </button>
+          </p>
+        )}
         <input
           type="text"
           name="category"
@@ -250,7 +298,7 @@ const CrimeTable = ({ token, refreshCrimes }) => {
           className="border p-2 rounded"
         />
         <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
-          {editing ? "Update Record" : "Add Record"}
+          {editingId !== null ? "Update Record" : "Add Record"}
         </button>
       </form>
     </div>

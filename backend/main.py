@@ -112,7 +112,7 @@ app = FastAPI(title="Smart Police Hotspot Prediction API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://smart-police-system.vercel.app"],
+    allow_origins=["http://localhost:3000","https://smart-police-system.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -234,6 +234,49 @@ def create_crime(crime: CrimeIn, current_user: str = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail="Failed to create crime")
     return insert_resp.data[0]
 
+# ── Replace your two duplicate route definitions with these clean versions ──────
+
+@app.put("/crimes/{crime_id}")
+def update_crime(crime_id: int, crime: CrimeIn, current_user: str = Depends(get_current_user)):
+    # Build payload from only the explicitly provided fields; never include id/user_id
+    payload = {
+        "category": crime.category,
+        "description": crime.description,
+        "latitude": crime.latitude,
+        "longitude": crime.longitude,
+        "grid_id": crime.grid_id,
+    }
+    # Remove None values so optional fields don't overwrite existing data with null
+    payload = {k: v for k, v in payload.items() if v is not None}
+
+    response = (
+        supabase.table("crimes")
+        .update(payload)
+        .eq("id", int(crime_id))          # explicit int cast — defensive against type mismatch
+        .eq("user_id", current_user)       # ownership check
+        .execute()
+    )
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Crime not found or you don't have permission")
+
+    return response.data[0]
+
+
+@app.delete("/crimes/{crime_id}")
+def delete_crime(crime_id: int, current_user: str = Depends(get_current_user)):
+    response = (
+        supabase.table("crimes")
+        .delete()
+        .eq("id", int(crime_id))          # explicit int cast
+        .eq("user_id", current_user)       # ownership check
+        .execute()
+    )
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Crime not found or you don't have permission")
+
+    return {"message": "Deleted successfully"}
 # -----------------------------
 # Input models
 # -----------------------------
@@ -266,7 +309,7 @@ def compute_growth_rates():
                 rate = 0.0
             else:
                 rates = []
- 
+
 @app.post("/predict_crimes_combined")
 def predict_crimes_combined(input_data: BulkCrimeInput):
     if _model is None:
