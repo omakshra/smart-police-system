@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "leaflet.heat";
 import axios from "axios";
-
+import { API_BASE_URL } from "../api";
 import districtCoords from "../data/districtsCoords.json"; // All districts with lat/lng
 
 // Heatmap Layer component
@@ -68,7 +68,7 @@ const Heatmap = () => {
 
         // Send batch request
         const res = await axios.post(
-          "http://127.0.0.1:8000/predict_crimes_combined",
+          `${API_BASE_URL}/predict_crimes_combined`,
           { records }
         );
 

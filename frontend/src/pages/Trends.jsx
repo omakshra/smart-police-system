@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../api";
 import { Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -34,7 +35,7 @@ const Trends = () => {
   // Fetch states
   useEffect(() => {
     axios
-      .get("http://127.0.0.1:8000/states")
+      .get(`${API_BASE_URL}/states`)
       .then((res) => setStates(res.data.states))
       .catch(() => setError("Failed to fetch states"));
   }, []);
@@ -43,7 +44,7 @@ const Trends = () => {
   useEffect(() => {
     if (!selectedState) return;
     axios
-      .get(`http://127.0.0.1:8000/districts/${encodeURIComponent(selectedState)}`)
+      .get(`${API_BASE_URL}/districts/${encodeURIComponent(selectedState)}`)
       .then((res) => setDistricts(res.data.districts))
       .catch(() => setError("Failed to fetch districts"));
   }, [selectedState]);
@@ -66,7 +67,7 @@ const fetchTrends = async () => {
 
     // Call backend
     const res = await axios.get(
-      `http://127.0.0.1:8000/hotspot_trends_batch/${encodedState}/${encodedDistrict}`
+      `${API_BASE_URL}/hotspot_trends_batch/${encodedState}/${encodedDistrict}`
     );
 
     // Check if trends exist

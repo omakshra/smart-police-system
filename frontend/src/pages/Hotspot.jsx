@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./Hotspot.css";
 import CrimeChart from "../components/CrimeChart.jsx";
-
+import { API_BASE_URL } from "../api";
 const Hotspot = () => {
   const [states, setStates] = useState([]);
   const [districts, setDistricts] = useState([]);
@@ -17,7 +17,7 @@ const Hotspot = () => {
   // Fetch states
   useEffect(() => {
     axios
-      .get("http://127.0.0.1:8000/states")
+      .get(`${API_BASE_URL}/states`)
       .then((res) => setStates(Array.isArray(res.data.states) ? res.data.states : []))
       .catch(() => setError("Failed to fetch states"));
   }, []);
@@ -26,7 +26,7 @@ const Hotspot = () => {
   useEffect(() => {
     if (!selectedState) return setDistricts([]);
     axios
-      .get(`http://127.0.0.1:8000/districts/${selectedState}`)
+      .get(`${API_BASE_URL}/districts/${selectedState}`)
       .then((res) => setDistricts(Array.isArray(res.data.districts) ? res.data.districts : []))
       .catch(() => setError("Failed to fetch districts"));
   }, [selectedState]);
@@ -44,7 +44,7 @@ const Hotspot = () => {
     setChartUrl("");
 
     try {
-      const res = await axios.post("http://127.0.0.1:8000/predict_crimes_combined", {
+      const res = await axios.post(`${API_BASE_URL}/predict_crimes_combined`, {
         records: [
           {
             state: selectedState,

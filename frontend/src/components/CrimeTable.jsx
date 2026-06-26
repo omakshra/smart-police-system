@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-
+import { API_BASE_URL } from "../api";
 const CrimeTable = ({ token, refreshCrimes }) => {
   const [crimes, setCrimes] = useState([]);
   const [search, setSearch] = useState("");
@@ -26,7 +26,7 @@ const CrimeTable = ({ token, refreshCrimes }) => {
 
   const fetchCrimes = async () => {
     try {
-      const res = await axios.get("http://127.0.0.1:8000/crimes", {
+      const res = await axios.get(`${API_BASE_URL}/crimes`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setCrimes(Array.isArray(res.data) ? res.data : []);
@@ -46,11 +46,11 @@ const CrimeTable = ({ token, refreshCrimes }) => {
     e.preventDefault();
     try {
       if (editing) {
-        await axios.put(`http://127.0.0.1:8000/crimes/${form.id}`, form, {
+        await axios.put(`${API_BASE_URL}/crimes/${form.id}`, form, {
           headers: { Authorization: `Bearer ${token}` },
         });
       } else {
-        await axios.post("http://127.0.0.1:8000/crimes", form, {
+        await axios.post(`${API_BASE_URL}/crimes`, form, {
           headers: { Authorization: `Bearer ${token}` },
         });
       }
@@ -75,7 +75,7 @@ const CrimeTable = ({ token, refreshCrimes }) => {
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this record?")) return;
     try {
-      await axios.delete(`http://127.0.0.1:8000/crimes/${id}`, {
+      await axios.delete(`${API_BASE_URL}/crimes/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       fetchCrimes();

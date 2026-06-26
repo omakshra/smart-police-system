@@ -1,5 +1,5 @@
 import { useState } from "react";
-import axios from "axios";
+import { api } from "../api";
 import { useNavigate } from "react-router-dom";
 
 const Auth = () => {
@@ -12,9 +12,9 @@ const Auth = () => {
 
   const handleSubmit = async () => {
     try {
-      const url = isSignup ? "http://127.0.0.1:8000/signup" : "http://127.0.0.1:8000/login";
+      const url = isSignup ? "/signup" : "/login";
       const payload = isSignup ? { name, email, password } : { email, password };
-      const res = await axios.post(url, payload);
+      const res = await api.post(url, payload);
 
       // Extract token and user info from response (backend returns top-level fields)
       const data = res.data || {};

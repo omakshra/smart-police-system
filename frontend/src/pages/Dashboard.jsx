@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Card from "../components/Card";
 import CrimeTable from "../components/CrimeTable";
+import { API_BASE_URL } from "../api";
 import {
   LineChart,
   Line,
@@ -24,7 +25,7 @@ const Dashboard = () => {
   const fetchCrimes = useCallback(async (token) => {
     if (!token) return;
     try {
-      const res = await fetch("http://127.0.0.1:8000/crimes", {
+      const res = await fetch(`${API_BASE_URL}/crimes`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) {
