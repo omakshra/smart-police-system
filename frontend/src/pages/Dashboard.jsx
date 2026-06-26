@@ -16,60 +16,77 @@ import {
   Bar,
 } from "recharts";
 
+// Helper to get ISO week number
+export function getWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+}
+
 const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [crimes, setCrimes] = useState([]);
   const navigate = useNavigate();
 
-  // Fetch crimes with useCallback to avoid useEffect dependency issues
-  const fetchCrimes = useCallback(async () => {
-  if (!token) return;
-
-  try {
-    const res = await fetch(`${API_BASE_URL}/crimes`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (res.status === 401) {
-      handleLogout();
-      return;
-    }
-
-    const data = await res.json();
-    if (Array.isArray(data)) setCrimes(data);
-  } catch (err) {
-    console.error("Fetch failed:", err);
-  }
-}, [token, handleLogout]);
-  // Load user and crimes on mount
+  // ── 1. Auth effect: runs once on mount ──────────────────────────────────────
   useEffect(() => {
     const raw = localStorage.getItem("user");
-    let userData = null;
-    try {
-      userData = raw ? JSON.parse(raw) : null;
-    } catch (e) {
-      userData = null;
-    }
-
-    if (!userData || !userData.token) {
-      // not logged in → go to login
+    if (!raw) {
       navigate("/login");
       return;
     }
 
-    setUser(userData);
-    fetchCrimes(userData.token);
-  }, [fetchCrimes, navigate]);
+    try {
+      const userData = JSON.parse(raw);
+      if (!userData?.token) {
+        navigate("/login");
+        return;
+      }
+      setUser(userData);
+    } catch {
+      navigate("/login");
+    }
+  }, [navigate]);
 
-  // Logout
-  const handleLogout = () => {
+  // ── 2. Logout ────────────────────────────────────────────────────────────────
+  const handleLogout = useCallback(() => {
     localStorage.removeItem("user");
+    setUser(null);
     navigate("/login");
-  };
+  }, [navigate]);
 
-  // Generate weekly trend & category data
+  // ── 3. Fetch crimes (depends only on token + handleLogout) ──────────────────
+  const fetchCrimes = useCallback(async (token) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/crimes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.status === 401) {
+        handleLogout();
+        return;
+      }
+
+      const data = await res.json();
+      if (Array.isArray(data)) setCrimes(data);
+    } catch (err) {
+      console.error("Fetch failed:", err);
+    }
+  }, [handleLogout]);
+
+  // ── 4. Data effect: runs whenever user changes ──────────────────────────────
+  useEffect(() => {
+    if (user?.token) {
+      fetchCrimes(user.token);
+    }
+  }, [user, fetchCrimes]);
+
+  // ── 5. Derived chart data ────────────────────────────────────────────────────
   const trendData = [];
   const categoryData = {};
+
   crimes.forEach((c) => {
     const week = `Week ${getWeekNumber(new Date(c.date))}`;
     const cat = c.category;
@@ -91,24 +108,25 @@ const Dashboard = () => {
 
   const kpis = [
     { title: "Total Incidents", value: crimes.length },
-    { title: "Top Categories", value: Object.keys(categoryData).join(", ") || "-" },
+    {
+      title: "Top Categories",
+      value: Object.keys(categoryData).join(", ") || "-",
+    },
     {
       title: "Top 5 Hotspots",
       value: crimes.slice(0, 5).map((c) => c.grid_id).join(", ") || "-",
     },
   ];
 
+  // ── 6. Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6 p-4">
+      {/* Header */}
       <div className="bg-white shadow p-4 rounded flex items-center justify-between">
         <div>
-          {user ? (
-            <h2 className="text-xl font-semibold text-gray-700">
-              👋 Welcome Officer {user.name}
-            </h2>
-          ) : (
-            <h2 className="text-xl font-semibold text-gray-700">👋 Welcome</h2>
-          )}
+          <h2 className="text-xl font-semibold text-gray-700">
+            {user ? `👋 Welcome Officer ${user.name}` : "👋 Welcome"}
+          </h2>
           <p className="text-gray-500">Smart Crime Monitoring Dashboard</p>
         </div>
         {user && (
@@ -167,18 +185,14 @@ const Dashboard = () => {
       </div>
 
       {/* Crime Table */}
-      {user && <CrimeTable token={user.token} />}
+      {user && (
+        <CrimeTable
+          token={user.token}
+          refreshCrimes={() => fetchCrimes(user.token)}
+        />
+      )}
     </div>
   );
 };
-
-// Helper to get week number
-export function getWeekNumber(date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-}
 
 export default Dashboard;

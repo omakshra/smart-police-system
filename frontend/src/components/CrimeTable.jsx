@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../api";
+
 const CrimeTable = ({ token, refreshCrimes }) => {
   const [crimes, setCrimes] = useState([]);
   const [search, setSearch] = useState("");
@@ -19,30 +20,31 @@ const CrimeTable = ({ token, refreshCrimes }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // ✅ Fetch crimes on mount or token change
+  // Handle 401 centrally
+  const handle401 = useCallback(() => {
+    localStorage.removeItem("user");
+    window.location.href = "/login";
+  }, []);
+
+  // Fetch crimes — does NOT call refreshCrimes (avoids double-fetch loop)
   const fetchCrimes = useCallback(async () => {
-  if (!token) return;
-
-  try {
-    const res = await axios.get(`${API_BASE_URL}/crimes`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    setCrimes(Array.isArray(res.data) ? res.data : []);
-
-    if (refreshCrimes) refreshCrimes();
-  } catch (err) {
-    console.error("Fetch failed:", err.response || err);
-
-    if (err.response && err.response.status === 401) {
-      localStorage.removeItem("user");
-      window.location.href = "/login";
+    if (!token) return;
+    try {
+      const res = await axios.get(`${API_BASE_URL}/crimes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCrimes(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Fetch failed:", err.response || err);
+      if (err.response?.status === 401) handle401();
     }
-  }
-}, [token, refreshCrimes]);
-useEffect(() => {
-  if (token) fetchCrimes();
-}, [token, fetchCrimes]);
+  }, [token, handle401]);
+
+  // Fetch on mount / token change
+  useEffect(() => {
+    if (token) fetchCrimes();
+  }, [token, fetchCrimes]);
+
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
@@ -59,14 +61,11 @@ useEffect(() => {
       }
       setForm({ id: "", category: "", description: "", latitude: "", longitude: "", grid_id: "" });
       setEditing(false);
-      fetchCrimes();
-      refreshCrimes(); // update parent dashboard
+      fetchCrimes();       // refresh local table
+      refreshCrimes?.();   // notify parent (Dashboard KPIs etc.)
     } catch (err) {
       console.error("Submit failed:", err.response || err);
-      if (err.response && err.response.status === 401) {
-        localStorage.removeItem("user");
-        window.location.href = "/login";
-      }
+      if (err.response?.status === 401) handle401();
     }
   };
 
@@ -81,18 +80,15 @@ useEffect(() => {
       await axios.delete(`${API_BASE_URL}/crimes/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchCrimes();
-      refreshCrimes(); // update parent dashboard
+      fetchCrimes();       // refresh local table
+      refreshCrimes?.();   // notify parent
     } catch (err) {
       console.error("Delete failed:", err.response || err);
-      if (err.response && err.response.status === 401) {
-        localStorage.removeItem("user");
-        window.location.href = "/login";
-      }
+      if (err.response?.status === 401) handle401();
     }
   };
 
-  // Filtering & Pagination
+  // Filtering
   const filteredCrimes = crimes.filter((c) => {
     const matchesSearch =
       c.category.toLowerCase().includes(search.toLowerCase()) ||
@@ -104,6 +100,7 @@ useEffect(() => {
     return matchesSearch && matchesCategory && matchesDateFrom && matchesDateTo;
   });
 
+  // Pagination
   const totalPages = Math.ceil(filteredCrimes.length / itemsPerPage);
   const paginatedCrimes = filteredCrimes.slice(
     (currentPage - 1) * itemsPerPage,
@@ -196,7 +193,9 @@ useEffect(() => {
           <button
             key={i}
             onClick={() => setCurrentPage(i + 1)}
-            className={`px-3 py-1 border rounded ${currentPage === i + 1 ? "bg-blue-600 text-white" : ""}`}
+            className={`px-3 py-1 border rounded ${
+              currentPage === i + 1 ? "bg-blue-600 text-white" : ""
+            }`}
           >
             {i + 1}
           </button>
@@ -204,7 +203,10 @@ useEffect(() => {
       </div>
 
       {/* Form */}
-      <form className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2" onSubmit={handleSubmit}>
+      <form
+        className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2"
+        onSubmit={handleSubmit}
+      >
         <input
           type="text"
           name="category"
@@ -247,10 +249,7 @@ useEffect(() => {
           onChange={handleChange}
           className="border p-2 rounded"
         />
-        <button
-          type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded"
-        >
+        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
           {editing ? "Update Record" : "Add Record"}
         </button>
       </form>
